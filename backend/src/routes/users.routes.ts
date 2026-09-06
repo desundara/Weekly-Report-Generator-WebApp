@@ -29,3 +29,18 @@ usersRouter.patch("/:id/role", authenticate, requireRole(["MANAGER"]), async (re
   });
   res.json(user);
 });
+
+// Manager-only: remove a team member. A manager can never remove themself,
+// and a member with existing reports can't be removed (would orphan data) —
+// reassign or archive their reports first.
+usersRouter.delete("/:id", authenticate, requireRole(["MANAGER"]), async (req: AuthedRequest, res) => {
+  if (req.params.id === req.user!.id) {
+    return res.status(400).json({ error: "You cannot remove your own account" });
+  }
+  const reportCount = await prisma.report.count({ where: { userId: req.params.id } });
+  if (reportCount > 0) {
+    return res.status(409).json({ error: "This member has existing reports and can't be removed" });
+  }
+  await prisma.user.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
