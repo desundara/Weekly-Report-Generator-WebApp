@@ -1,0 +1,117 @@
+// Prisma schema — PostgreSQL
+// Run: npm run db:migrate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  TEAM_MEMBER
+  MANAGER
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  NEEDS_CORRECTION
+  APPROVED
+}
+
+enum ReviewAction {
+  APPROVED
+  REQUESTED_CHANGES
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(TEAM_MEMBER)
+  createdAt    DateTime @default(now())
+
+  reports        Report[]        @relation("AuthoredReports")
+  reviewComments ReviewComment[] @relation("ReviewsGiven")
+  projectLinks   ProjectMember[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  reports Report[]
+  members ProjectMember[]
+}
+
+model ProjectMember {
+  id        String  @id @default(cuid())
+  userId    String
+  projectId String
+  user      User    @relation(fields: [userId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id])
+
+  @@unique([userId, projectId])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  userId         String
+  projectId      String
+  weekStartDate  DateTime
+  weekEndDate    DateTime
+  status         ReportStatus @default(DRAFT)
+  currentVersion Int          @default(1)
+
+  tasksCompleted Json
+  tasksPlanned   Json
+  blockers       Json
+  achievements   Json
+  hoursByType    Json?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user           User            @relation("AuthoredReports", fields: [userId], references: [id])
+  project        Project         @relation(fields: [projectId], references: [id])
+  versions       ReportVersion[]
+  reviewComments ReviewComment[]
+
+  @@index([userId, weekStartDate])
+  @@index([status])
+}
+
+model ReportVersion {
+  id            String   @id @default(cuid())
+  reportId      String
+  versionNumber Int
+  snapshot      Json
+  submittedAt   DateTime @default(now())
+
+  report Report @relation(fields: [reportId], references: [id])
+
+  @@unique([reportId, versionNumber])
+}
+
+model ReviewComment {
+  id            String       @id @default(cuid())
+  reportId      String
+  managerId     String
+  versionNumber Int
+  action        ReviewAction
+  comment       String?
+  createdAt     DateTime     @default(now())
+
+  report  Report @relation(fields: [reportId], references: [id])
+  manager User   @relation("ReviewsGiven", fields: [managerId], references: [id])
+
+  @@index([reportId])
+}
