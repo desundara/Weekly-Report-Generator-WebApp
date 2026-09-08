@@ -6,6 +6,8 @@ import {
 import { useAuth } from "context/AuthContext";
 import { api } from "lib/api";
 import { ManagerNav } from "components/ManagerNav";
+import { renderInlineMarkdown } from "lib/markdown";
+import { PageLoader } from "components/PageLoader";
 
 type DashboardData = {
   summary: {
@@ -39,8 +41,8 @@ const STATUS_COLOR: Record<string, string> = {
 
 function MetricCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
-    <div className="glass-panel p-4">
-      <p className="text-text-muted text-sm">{label}</p>
+    <div className="p-4 glass-panel">
+      <p className="text-sm text-text-muted">{label}</p>
       <p className={`text-3xl font-display font-semibold mt-1 ${accent ?? ""}`}>{value}</p>
     </div>
   );
@@ -49,36 +51,47 @@ function MetricCard({ label, value, accent }: { label: string; value: number; ac
 export default function Dashboard() {
   const { token } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     api("/api/dashboard", { token }).then(setData).catch(() => {});
   }, [token]);
 
+  async function generateSummary() {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const res = await api("/api/ai/summary", { method: "POST", token });
+      setSummary(res.summary);
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Could not generate a summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
   if (!data) {
-    return (
-      <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto">
-        <ManagerNav />
-        <p className="text-text-muted text-sm">Loading dashboard…</p>
-      </main>
-    );
+    return <PageLoader message="Loading dashboard…" />;
   }
 
   const hoursData = Object.entries(data.hoursByType).map(([type, hours]) => ({ type, hours }));
 
   return (
-    <main className="min-h-screen p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+    <main className="max-w-6xl min-h-screen p-4 mx-auto space-y-6 md:p-8">
       <ManagerNav />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard label="Submitted this week" value={data.summary.totalSubmittedThisWeek} accent="text-status-submitted" />
         <MetricCard label="Pending this week" value={data.summary.pendingThisWeek} accent="text-status-draft" />
         <MetricCard label="Needs correction" value={data.summary.needsCorrectionCount} accent="text-status-correction" />
         <MetricCard label="Open blockers" value={data.summary.openBlockersCount} accent="text-status-blocker" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <section className="glass-panel p-4">
-          <h2 className="text-lg font-medium mb-3">Tasks completed trend</h2>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <section className="p-4 glass-panel">
+          <h2 className="mb-3 text-lg font-medium">Tasks completed trend</h2>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={data.taskTrend}>
               <CartesianGrid stroke="rgba(255,255,255,0.08)" />
@@ -90,8 +103,8 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </section>
 
-        <section className="glass-panel p-4">
-          <h2 className="text-lg font-medium mb-3">Workload by project</h2>
+        <section className="p-4 glass-panel">
+          <h2 className="mb-3 text-lg font-medium">Workload by project</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.workloadByProject}>
               <CartesianGrid stroke="rgba(255,255,255,0.08)" />
@@ -103,8 +116,8 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </section>
 
-        <section className="glass-panel p-4">
-          <h2 className="text-lg font-medium mb-3">Submission status by team member (this week)</h2>
+        <section className="p-4 glass-panel">
+          <h2 className="mb-3 text-lg font-medium">Submission status by team member (this week)</h2>
           <div className="space-y-2">
             {data.statusByMember.map((s) => (
               <div key={s.member} className="flex items-center justify-between text-sm">
@@ -118,8 +131,8 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="glass-panel p-4">
-          <h2 className="text-lg font-medium mb-3">Time spent by task type (team-wide)</h2>
+        <section className="p-4 glass-panel">
+          <h2 className="mb-3 text-lg font-medium">Time spent by task type (team-wide)</h2>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={hoursData} layout="vertical">
               <CartesianGrid stroke="rgba(255,255,255,0.08)" />
@@ -136,17 +149,32 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <section className="glass-panel p-4">
-        <h2 className="text-lg font-medium mb-3">Recent activity</h2>
+      <section className="p-4 glass-panel border-accent-cyan/30">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-medium">AI team summary</h2>
+          <button onClick={generateSummary} disabled={summaryLoading} className="text-sm btn-primary">
+            {summaryLoading ? "Generating…" : summary ? "Regenerate" : "Generate summary"}
+          </button>
+        </div>
+        {summaryError && <p className="text-sm text-status-blocker">{summaryError}</p>}
+        {summary ? (
+          <p className="text-sm leading-relaxed whitespace-pre-line text-text-muted">{renderInlineMarkdown(summary)}</p>
+        ) : (
+          !summaryLoading && <p className="text-sm text-text-faint">Generate a summary of completed work, recurring blockers, and workload balance across the team.</p>
+        )}
+      </section>
+
+      <section className="p-4 glass-panel">
+        <h2 className="mb-3 text-lg font-medium">Recent activity</h2>
         {data.recentActivity.length === 0 ? (
-          <p className="text-text-muted text-sm">No review activity yet.</p>
+          <p className="text-sm text-text-muted">No review activity yet.</p>
         ) : (
           <div className="space-y-2">
             {data.recentActivity.map((a) => (
               <Link
                 key={a.id}
                 to={`/reports/${a.reportId}`}
-                className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-glass-fill transition-colors"
+                className="flex items-center justify-between p-2 text-sm transition-colors rounded-lg hover:bg-glass-fill"
               >
                 <span>
                   <span className={a.action === "APPROVED" ? "text-status-approved" : "text-status-correction"}>

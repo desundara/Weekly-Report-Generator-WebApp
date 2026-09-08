@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "context/AuthContext";
+import { AuthProvider, useAuth } from "context/AuthContext";
 import { ProtectedRoute, ManagerRoute } from "components/ProtectedRoute";
+import { ChatWidget } from "components/ChatWidget";
 import Login from "pages/Login";
 import Register from "pages/Register";
 import Reports from "pages/Reports";
@@ -10,6 +11,12 @@ import Dashboard from "pages/Dashboard";
 import ProjectsAdmin from "pages/ProjectsAdmin";
 import UsersAdmin from "pages/UsersAdmin";
 import TeamMemberProfile from "pages/TeamMemberProfile";
+
+function GlobalChatWidget() {
+  const { user, token } = useAuth();
+  if (!token || user?.role !== "MANAGER") return null;
+  return <ChatWidget />;
+}
 
 export default function App() {
   return (
@@ -84,6 +91,7 @@ export default function App() {
             }
           />
         </Routes>
+        <GlobalChatWidget />
       </BrowserRouter>
     </AuthProvider>
   );
