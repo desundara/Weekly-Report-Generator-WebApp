@@ -4,6 +4,7 @@ import { useAuth } from "context/AuthContext";
 import { api } from "lib/api";
 import { Report } from "lib/types";
 import { StatusPill } from "components/StatusPill";
+import { PageLoader } from "components/PageLoader";
 
 export default function Reports() {
   const { user, token, logout } = useAuth();
@@ -18,13 +19,14 @@ export default function Reports() {
   }, [token, user]);
 
   if (user?.role === "MANAGER") return <Navigate to="/dashboard" replace />;
+  if (loading) return <PageLoader message="Loading your reports…" />;
 
   return (
-    <main className="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
+    <main className="max-w-4xl min-h-screen p-4 mx-auto md:p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold">Welcome, {user?.name}</h1>
-          <p className="text-text-muted text-sm mt-1">
+          <p className="mt-1 text-sm text-text-muted">
             Signed in as <span className="status-pill submitted">{user?.role}</span>
           </p>
         </div>
@@ -36,25 +38,23 @@ export default function Reports() {
         <Link to="/reports/new" className="btn-primary">+ New report</Link>
       </div>
 
-      {loading ? (
-        <p className="text-text-muted text-sm">Loading…</p>
-      ) : reports.length === 0 ? (
-        <div className="glass-panel p-6 text-center text-text-muted text-sm">
+      {reports.length === 0 ? (
+        <div className="p-6 text-sm text-center glass-panel text-text-muted">
           No reports yet — create your first weekly report.
         </div>
       ) : (
-        <div className="glass-panel divide-y divide-glass-border">
+        <div className="divide-y glass-panel divide-glass-border">
           {reports.map((r) => (
             <Link
               key={r.id}
               to={`/reports/${r.id}`}
-              className="flex items-center justify-between p-4 hover:bg-glass-fill transition-colors"
+              className="flex items-center justify-between p-4 transition-colors hover:bg-glass-fill"
             >
               <div>
                 <p className="font-medium">
                   Week of {new Date(r.weekStartDate).toLocaleDateString()}
                 </p>
-                <p className="text-text-muted text-sm">{r.project?.name}</p>
+                <p className="text-sm text-text-muted">{r.project?.name}</p>
               </div>
               <StatusPill status={r.status} />
             </Link>

@@ -8,6 +8,7 @@ import { FlaggedListEditor } from "components/FlaggedListEditor";
 import { StatusPill } from "components/StatusPill";
 import { VersionHistory } from "components/VersionHistory";
 import { ReviewPanel } from "components/ReviewPanel";
+import { PageLoader } from "components/PageLoader";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -33,35 +34,50 @@ export default function ReportForm() {
   const [hoursByType, setHoursByType] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState("");
 
-  const [loading, setLoading] = useState(isEdit);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const editable = status === "DRAFT" || status === "NEEDS_CORRECTION";
 
   useEffect(() => {
-    api("/api/projects", { token }).then(setProjects).catch(() => {});
-  }, [token]);
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!isEdit) return;
-    api(`/api/reports/${id}`, { token })
-      .then((r: Report) => {
-        setStatus(r.status);
-        setProjectId(r.projectId);
-        setWeekStartDate(r.weekStartDate.slice(0, 10));
-        setWeekEndDate(r.weekEndDate.slice(0, 10));
-        setTasksCompleted(r.tasksCompleted ?? []);
-        setTasksPlanned(r.tasksPlanned?.length ? r.tasksPlanned : [{ description: "" }]);
-        setBlockers(r.blockers ?? []);
-        setAchievements(r.achievements ?? []);
-        setHoursByType(r.hoursByType ?? {});
-        setNotes(r.notes ?? "");
-        const mostRecent = r.reviewComments?.[0];
-        setCorrectionComment(mostRecent?.action === "REQUESTED_CHANGES" ? mostRecent.comment : null);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    async function load() {
+      try {
+        const [projectsData, reportData] = await Promise.all([
+          api("/api/projects", { token }),
+          isEdit ? api(`/api/reports/${id}`, { token }) : Promise.resolve(null)
+        ]);
+        if (cancelled) return;
+
+        setProjects(projectsData);
+        if (reportData) {
+          const r: Report = reportData;
+          setStatus(r.status);
+          setProjectId(r.projectId);
+          setWeekStartDate(r.weekStartDate.slice(0, 10));
+          setWeekEndDate(r.weekEndDate.slice(0, 10));
+          setTasksCompleted(r.tasksCompleted ?? []);
+          setTasksPlanned(r.tasksPlanned?.length ? r.tasksPlanned : [{ description: "" }]);
+          setBlockers(r.blockers ?? []);
+          setAchievements(r.achievements ?? []);
+          setHoursByType(r.hoursByType ?? {});
+          setNotes(r.notes ?? "");
+          const mostRecent = r.reviewComments?.[0];
+          setCorrectionComment(mostRecent?.action === "REQUESTED_CHANGES" ? mostRecent.comment : null);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load the report.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [id, isEdit, token]);
 
   function buildPayload() {
@@ -117,7 +133,7 @@ export default function ReportForm() {
     }
   }
 
-  if (loading) return <main className="min-h-screen p-8 text-text-muted">Loading…</main>;
+  if (loading) return <PageLoader message="Loading report…" />;
 
   return (
     <main className="max-w-5xl min-h-screen p-4 mx-auto space-y-6 md:p-8">

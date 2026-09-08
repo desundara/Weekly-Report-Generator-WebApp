@@ -3,6 +3,7 @@ import { useAuth } from "context/AuthContext";
 import { api } from "lib/api";
 import { Project } from "lib/types";
 import { ManagerNav } from "components/ManagerNav";
+import { PageLoader } from "components/PageLoader";
 
 export default function ProjectsAdmin() {
   const { token } = useAuth();
@@ -16,12 +17,15 @@ export default function ProjectsAdmin() {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
-  function load() {
-    setLoading(true);
-    api("/api/projects", { token }).then(setProjects).finally(() => setLoading(false));
+  async function fetchProjects() {
+    const data = await api("/api/projects", { token });
+    setProjects(data);
   }
 
-  useEffect(load, [token]);
+  useEffect(() => {
+    fetchProjects().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   async function addProject() {
     if (!newName.trim()) return;
@@ -30,7 +34,7 @@ export default function ProjectsAdmin() {
       await api("/api/projects", { method: "POST", token, body: { name: newName, description: newDescription } });
       setNewName("");
       setNewDescription("");
-      load();
+      await fetchProjects();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not add project.");
     }
@@ -47,7 +51,7 @@ export default function ProjectsAdmin() {
     try {
       await api(`/api/projects/${id}`, { method: "PUT", token, body: { name: editName, description: editDescription } });
       setEditingId(null);
-      load();
+      await fetchProjects();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update project.");
     }
@@ -58,24 +62,26 @@ export default function ProjectsAdmin() {
     setError(null);
     try {
       await api(`/api/projects/${id}`, { method: "DELETE", token });
-      load();
+      await fetchProjects();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete project.");
     }
   }
 
+  if (loading) return <PageLoader message="Loading projects…" />;
+
   return (
-    <main className="min-h-screen p-4 md:p-8 max-w-3xl mx-auto space-y-6">
+    <main className="max-w-3xl min-h-screen p-4 mx-auto space-y-6 md:p-8">
       <ManagerNav />
 
       <div>
-        <h1 className="text-xl font-semibold mb-1">Projects &amp; categories</h1>
-        <p className="text-text-muted text-sm">Manage the projects team members can tag their reports with.</p>
+        <h1 className="mb-1 text-xl font-semibold">Projects &amp; categories</h1>
+        <p className="text-sm text-text-muted">Manage the projects team members can tag their reports with.</p>
       </div>
 
-      <section className="glass-panel p-4">
-        <h2 className="text-sm font-medium text-text-muted mb-3">Add a project</h2>
-        <div className="flex flex-col md:flex-row gap-3">
+      <section className="p-4 glass-panel">
+        <h2 className="mb-3 text-sm font-medium text-text-muted">Add a project</h2>
+        <div className="flex flex-col gap-3 md:flex-row">
           <input value={newName} onChange={(e) => setNewName(e.target.value)} className="input-glass" placeholder="Project name" />
           <input
             value={newDescription}
@@ -87,39 +93,35 @@ export default function ProjectsAdmin() {
         </div>
       </section>
 
-      {error && <p className="text-status-blocker text-sm">{error}</p>}
+      {error && <p className="text-sm text-status-blocker">{error}</p>}
 
-      {loading ? (
-        <p className="text-text-muted text-sm">Loading…</p>
-      ) : (
-        <div className="glass-panel divide-y divide-glass-border">
-          {projects.map((p) => (
-            <div key={p.id} className="p-4">
-              {editingId === p.id ? (
-                <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-glass" />
-                  <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="input-glass" />
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={() => saveEdit(p.id)} className="btn-primary">Save</button>
-                    <button onClick={() => setEditingId(null)} className="btn-ghost">Cancel</button>
-                  </div>
+      <div className="divide-y glass-panel divide-glass-border">
+        {projects.map((p) => (
+          <div key={p.id} className="p-4">
+            {editingId === p.id ? (
+              <div className="flex flex-col items-start gap-3 md:flex-row md:items-center">
+                <input value={editName} onChange={(e) => setEditName(e.target.value)} className="input-glass" />
+                <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="input-glass" />
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => saveEdit(p.id)} className="btn-primary">Save</button>
+                  <button onClick={() => setEditingId(null)} className="btn-ghost">Cancel</button>
                 </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{p.name}</p>
-                    {p.description && <p className="text-text-muted text-sm">{p.description}</p>}
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => startEdit(p)} className="btn-ghost">Edit</button>
-                    <button onClick={() => remove(p.id)} className="text-status-blocker hover:opacity-80 px-3">Delete</button>
-                  </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{p.name}</p>
+                  {p.description && <p className="text-sm text-text-muted">{p.description}</p>}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(p)} className="btn-ghost">Edit</button>
+                  <button onClick={() => remove(p.id)} className="px-3 text-status-blocker hover:opacity-80">Delete</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </main>
   );
 }
