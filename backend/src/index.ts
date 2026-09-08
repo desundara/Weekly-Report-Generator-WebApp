@@ -6,6 +6,7 @@ import { usersRouter } from "./routes/users.routes";
 import { reportsRouter } from "./routes/reports.routes";
 import { projectsRouter } from "./routes/projects.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
+import { aiRouter } from "./routes/ai.routes";
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/ai", aiRouter);
 
 const PORT = process.env.PORT ?? 4000;
 app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
