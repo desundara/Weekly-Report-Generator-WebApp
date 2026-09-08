@@ -10,6 +10,10 @@ export function isAiConfigured() {
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
+type GroqResponse = {
+  choices?: { message?: { content?: string } }[];
+};
+
 export async function callAi(messages: ChatMessage[], maxTokens = 500): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY is not set");
@@ -27,6 +31,6 @@ export async function callAi(messages: ChatMessage[], maxTokens = 500): Promise<
     throw new Error(`Groq API error (${res.status}): ${body}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as GroqResponse;
   return data.choices?.[0]?.message?.content ?? "";
 }
